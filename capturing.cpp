@@ -8,12 +8,9 @@
 #include <vector>
 #include <tuple>
 #include <windows.h>
-
-#include "rapidjson/document.h"
-#include "rapidjson/writer.h"
-#include "rapidjson/stringbuffer.h"
 #include <iostream>
 #include <fstream>
+#include <../client.h>
 
 using namespace std::chrono;
 
@@ -50,13 +47,20 @@ struct RAWRGB {
 		return *this;
 	}
 
+	operator unsigned char*() const {
+		unsigned char* x = new unsigned char[3]{ (unsigned char)this->R, (unsigned char)this->G, (unsigned char)this->B };
+		return x;
+	}
+
 	std::string toString() {
 		return std::to_string(R) + "," + std::to_string(G) + "," + std::to_string(B);
 	}
 };
 
 int main() {
+	connect();
 	CaptureAnImage();
+	disconnect();
 	std::cin.get();
 	return 0;
 }
@@ -66,10 +70,8 @@ bool compare_CaptureRegion(const CaptureRegion first, const CaptureRegion second
 	return (first.border < second.border);
 }
 
-int sendRGB(RAWRGB* values, int size) {
-	for (int i = 0; i < size; i++) {
-		values[i];
-	}
+int sendRGB(unsigned char* values, int size) {
+	sendData(values, size);
 	return 0;
 }
 
@@ -200,15 +202,15 @@ int CaptureAnImage()
 	}
 
 	std::ofstream myfile;
-	myfile.open("data.txt");
+	myfile.open("data.bin");
 	auto start_total = high_resolution_clock::now();
 	for (int loops = 0;loops < 5;loops++) {
 		auto start = high_resolution_clock::now();
 		BitBlt(hdcMemDC, 0, 0, bmpScreen.bmWidth, bmpScreen.bmHeight, hdcScreen, 0, 0, SRCCOPY);
-		std::cout << "LOOP " << loops << " ~ Grabbing image in " << duration<double, std::milli>(high_resolution_clock::now() - start).count() << " milliseconds.\n";
+		//std::cout << "LOOP " << loops << " ~ Grabbing image in " << duration<double, std::milli>(high_resolution_clock::now() - start).count() << " milliseconds.\n";
 		
-		auto looptime = high_resolution_clock::now();
-		RAWRGB* values = new RAWRGB[captureRegionArraySize];
+		//auto looptime = high_resolution_clock::now();
+		unsigned char* values = new unsigned char[captureRegionArraySize*3];
 		for (int i = 0; i < captureRegionArraySize; i++) {
 			RAWRGB value = { 0,0,0 };
 			for (int y = captureRegionArray[i].y; y < captureRegionArray[i].y + captureRegionArray[i].height; y++) {
@@ -217,16 +219,18 @@ int CaptureAnImage()
 					value = rgb + value;
 				}
 			}
-			values[i] = value / (captureRegionArray[i].height * captureRegionArray[i].width);
+			value = value / (captureRegionArray[i].height * captureRegionArray[i].width);
+			values[3*i] = value.R;
+			values[3*i+1] = value.G;
+			values[3*i+2] = value.B;
 		}
-		std::cout << "LOOP " << loops << " ~ RGB fetch in " << duration<double, std::milli>(high_resolution_clock::now() - looptime).count() << " milliseconds.\n";
-		/*for (int i = 0; i < captureRegionArraySize; i++) {
-			myfile << values[i].toString() << "\n";
-		}*/
-		//sendRGB(values, captureRegionArraySize);
-		std::this_thread::sleep_for(milliseconds(LOOP_INTERVAL)-duration<double, std::milli>(high_resolution_clock::now() - start));
+		//std::cout << "LOOP " << loops << " ~ RGB fetch in " << duration<double, std::milli>(high_resolution_clock::now() - looptime).count() << " milliseconds.\n";
+		for (int i = 0; i < captureRegionArraySize*3; i++) {
+			myfile << values[i];
+		}
+		sendRGB(values, captureRegionArraySize*3);
+		std::this_thread::sleep_for(milliseconds(LOOP_INTERVAL-1)-duration<double, std::milli>(high_resolution_clock::now() - start));
 		std::cout << "LOOP " << loops << " ~ Full Loop in " << duration<double, std::milli>(high_resolution_clock::now() - start).count() << " milliseconds.\n";
-		std::cout << "Loops took " << duration<double, std::milli>(high_resolution_clock::now() - start_total).count() << " milliseconds so far.\n";
 	}
 	std::cout << "All loops in " << duration<double, std::milli>(high_resolution_clock::now() - start_total).count() << " milliseconds.\n";
 	myfile.close();
@@ -267,6 +271,6 @@ int CaptureAnImage()
 	ReleaseDC(NULL, hdcScreen);
 	ReleaseDC(hWnd, hdcWindow);
 
-	std::cout << "done";
+	std::cout << "Capturing finished\n";
 	return 0;
 }
