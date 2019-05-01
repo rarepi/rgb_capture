@@ -173,13 +173,13 @@ int CaptureAnImage()
 		i++;
 	}
 
-	std::ofstream myfile;
-	myfile.open("data.bin");
+	//std::ofstream myfile;
+	//myfile.open("data.bin");
 	auto loop_start = high_resolution_clock::now();
 	for (int loops = 0;loops < 100;loops++) {
 		auto this_loop_start = high_resolution_clock::now();
 		BitBlt(hdcMemDC, 0, 0, bmpScreen.bmWidth, bmpScreen.bmHeight, hdcScreen, 0, 0, SRCCOPY);
-		//std::cout << "LOOP " << loops << " ~ Grabbing image in " << duration<double, std::milli>(high_resolution_clock::now() - start).count() << " milliseconds.\n";
+		//std::cout << "LOOP #" << loops << " ~ Grabbing image in " << duration<double, std::milli>(high_resolution_clock::now() - start).count() << " milliseconds.\n";
 		
 		//auto looptime = high_resolution_clock::now();
 		unsigned char* values = new unsigned char[captureRegionArraySize*3];
@@ -199,7 +199,8 @@ int CaptureAnImage()
 			values[3*i+1] = g / pxcount;
 			values[3*i+2] = b / pxcount;
 		}
-		//std::cout << "LOOP " << loops << " ~ RGB fetch in " << duration<double, std::milli>(high_resolution_clock::now() - looptime).count() << " milliseconds.\n";
+		//std::cout << "LOOP #" << loops << " ~ RGB fetch in " << duration<double, std::milli>(high_resolution_clock::now() - looptime).count() << " milliseconds.\n";
+
 		/*for (int i = 0; i < captureRegionArraySize*3; i++) {
 			myfile << values[i];
 		}*/
@@ -207,14 +208,13 @@ int CaptureAnImage()
 		thread_tcp.detach();	//evil
 
 		std::this_thread::sleep_for(milliseconds(LOOP_INTERVAL * (loops + 1)) - duration<double, std::milli>(high_resolution_clock::now() - loop_start));
-		//std::cout << "LOOP " << loops << " ~ Full Loop in " << duration<double, std::milli>(high_resolution_clock::now() - this_loop_start).count() << " milliseconds.\n";
+		//std::cout << "LOOP #" << loops << " ~ Full Loop in " << duration<double, std::milli>(high_resolution_clock::now() - this_loop_start).count() << " milliseconds.\n";
 	}
 	std::cout << "All loops in " << duration<double, std::milli>(high_resolution_clock::now() - loop_start).count() << " milliseconds.\n";
-	myfile.close();
+	//myfile.close();
 
-	// A file is created, this is where we will save the screen capture.
 	HANDLE hFile = CreateFile(
-		L"captureqwsx.bmp",
+		L"last_capture.bmp",
 		GENERIC_WRITE,
 		0,
 		NULL,
