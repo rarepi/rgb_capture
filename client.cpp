@@ -13,7 +13,7 @@ int sendData(unsigned char* data, int size) {
 	char* dataBytes = reinterpret_cast<char*>(data);
 	int result = send(s, dataBytes, size, 0);
 	if (result == SOCKET_ERROR) {
-		printf("TCPClient: send failed with error: %d\n", WSAGetLastError());
+		//printf("TCPClient: send failed with error: %d\n", WSAGetLastError());
 		closesocket(s);
 		WSACleanup();
 		return 1;

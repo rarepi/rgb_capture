@@ -10,11 +10,12 @@
 #include <windows.h>
 #include <iostream>
 #include <fstream>
+#include <thread>
 #include <../client.h>
 
 using namespace std::chrono;
 
-const int LOOP_INTERVAL = 100; //ms
+const int LOOP_INTERVAL = 20; //ms
 const int BORDER_SIZE = 100; //size of area to read for color data
 const int CHUNK_SIZE = 63; //size of area chunks per LED
 
@@ -26,35 +27,6 @@ struct CaptureRegion {
 	int y;		//y
 	int width;	//width
 	int height;	//height
-};
-
-struct RAWRGB {
-	int R;
-	int G;
-	int B;
-
-	RAWRGB operator+(const RAWRGB& other) {
-		this->R += other.R;
-		this->G += other.G;
-		this->B += other.B;
-		return *this;
-	}
-
-	RAWRGB operator/(const int& other) {
-		this->R /= other;
-		this->G /= other;
-		this->B /= other;
-		return *this;
-	}
-
-	operator unsigned char*() const {
-		unsigned char* x = new unsigned char[3]{ (unsigned char)this->R, (unsigned char)this->G, (unsigned char)this->B };
-		return x;
-	}
-
-	std::string toString() {
-		return std::to_string(R) + "," + std::to_string(G) + "," + std::to_string(B);
-	}
 };
 
 int main() {
@@ -203,36 +175,41 @@ int CaptureAnImage()
 
 	std::ofstream myfile;
 	myfile.open("data.bin");
-	auto start_total = high_resolution_clock::now();
-	for (int loops = 0;loops < 5;loops++) {
-		auto start = high_resolution_clock::now();
+	auto loop_start = high_resolution_clock::now();
+	for (int loops = 0;loops < 100;loops++) {
+		auto this_loop_start = high_resolution_clock::now();
 		BitBlt(hdcMemDC, 0, 0, bmpScreen.bmWidth, bmpScreen.bmHeight, hdcScreen, 0, 0, SRCCOPY);
 		//std::cout << "LOOP " << loops << " ~ Grabbing image in " << duration<double, std::milli>(high_resolution_clock::now() - start).count() << " milliseconds.\n";
 		
 		//auto looptime = high_resolution_clock::now();
 		unsigned char* values = new unsigned char[captureRegionArraySize*3];
 		for (int i = 0; i < captureRegionArraySize; i++) {
-			RAWRGB value = { 0,0,0 };
+			size_t r = 0;
+			size_t g = 0;
+			size_t b = 0;
 			for (int y = captureRegionArray[i].y; y < captureRegionArray[i].y + captureRegionArray[i].height; y++) {
 				for (int x = captureRegionArray[i].x; x < captureRegionArray[i].x + captureRegionArray[i].width; x++) {
-					RAWRGB rgb = { lpbitmap[4 * ((y*bmpScreen.bmWidth) + x) + 2], lpbitmap[4 * ((y*bmpScreen.bmWidth) + x) + 1], lpbitmap[4 * ((y*bmpScreen.bmWidth) + x)] };
-					value = rgb + value;
+					r = lpbitmap[4 * ((y*bmpScreen.bmWidth) + x) + 2] + r;
+					g = lpbitmap[4 * ((y*bmpScreen.bmWidth) + x) + 1] + g;
+					b = lpbitmap[4 * ((y*bmpScreen.bmWidth) + x)] + b;
 				}
 			}
-			value = value / (captureRegionArray[i].height * captureRegionArray[i].width);
-			values[3*i] = value.R;
-			values[3*i+1] = value.G;
-			values[3*i+2] = value.B;
+			size_t pxcount = captureRegionArray[i].height * captureRegionArray[i].width;
+			values[3*i] = r / pxcount;
+			values[3*i+1] = g / pxcount;
+			values[3*i+2] = b / pxcount;
 		}
 		//std::cout << "LOOP " << loops << " ~ RGB fetch in " << duration<double, std::milli>(high_resolution_clock::now() - looptime).count() << " milliseconds.\n";
-		for (int i = 0; i < captureRegionArraySize*3; i++) {
+		/*for (int i = 0; i < captureRegionArraySize*3; i++) {
 			myfile << values[i];
-		}
-		sendRGB(values, captureRegionArraySize*3);
-		std::this_thread::sleep_for(milliseconds(LOOP_INTERVAL-1)-duration<double, std::milli>(high_resolution_clock::now() - start));
-		std::cout << "LOOP " << loops << " ~ Full Loop in " << duration<double, std::milli>(high_resolution_clock::now() - start).count() << " milliseconds.\n";
+		}*/
+		std::thread thread_tcp(sendRGB, values, captureRegionArraySize * 3);
+		thread_tcp.detach();	//evil
+
+		std::this_thread::sleep_for(milliseconds(LOOP_INTERVAL * (loops + 1)) - duration<double, std::milli>(high_resolution_clock::now() - loop_start));
+		//std::cout << "LOOP " << loops << " ~ Full Loop in " << duration<double, std::milli>(high_resolution_clock::now() - this_loop_start).count() << " milliseconds.\n";
 	}
-	std::cout << "All loops in " << duration<double, std::milli>(high_resolution_clock::now() - start_total).count() << " milliseconds.\n";
+	std::cout << "All loops in " << duration<double, std::milli>(high_resolution_clock::now() - loop_start).count() << " milliseconds.\n";
 	myfile.close();
 
 	// A file is created, this is where we will save the screen capture.
